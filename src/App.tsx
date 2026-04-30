@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CheckCircle2,
+  Clapperboard,
   Gauge,
   Maximize2,
   Pause,
@@ -13,6 +14,7 @@ import {
   PlayCircle,
   RotateCcw,
   Timer,
+  X,
   Zap,
 } from "lucide-react";
 import {
@@ -38,6 +40,7 @@ import {
   type Station,
   type ToolKind,
 } from "./data";
+import { presentationVideos, type PresentationVideo } from "./videoLinks";
 
 const severityLabel: Record<Severity, string> = {
   info: "evento",
@@ -53,6 +56,7 @@ const toolColor: Record<ToolKind, string> = {
   APS: "#2BCA95",
   SCADA: "#FFA100",
   PLC: "#FF00B3",
+  CARBON: "#8BEF8B",
   AGENT: "#FFFFFF",
 };
 
@@ -85,6 +89,8 @@ function shouldAutoPlayOnEntry(step: number): boolean {
 function App() {
   const [activeStep, setActiveStep] = useState(INTRO_STEP);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [videosOpen, setVideosOpen] = useState(false);
+  const [activeVideo, setActiveVideo] = useState<PresentationVideo | null>(null);
 
   useEffect(() => {
     if (!isPlaying) {
@@ -161,6 +167,16 @@ function App() {
     setIsPlaying(false);
   };
 
+  const openVideo = (video: PresentationVideo) => {
+    setIsPlaying(false);
+    setVideosOpen(false);
+    setActiveVideo(video);
+  };
+
+  const closeVideo = () => {
+    setActiveVideo(null);
+  };
+
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(() => undefined);
@@ -216,7 +232,129 @@ function App() {
           onFullscreen={toggleFullscreen}
         />
       )}
+
+      <VideoDock
+        activeVideo={activeVideo}
+        expanded={videosOpen}
+        onCloseVideo={closeVideo}
+        onOpenVideo={openVideo}
+        onToggle={() => setVideosOpen((value) => !value)}
+        videos={presentationVideos}
+      />
     </main>
+  );
+}
+
+interface VideoDockProps {
+  activeVideo: PresentationVideo | null;
+  expanded: boolean;
+  videos: PresentationVideo[];
+  onCloseVideo: () => void;
+  onOpenVideo: (video: PresentationVideo) => void;
+  onToggle: () => void;
+}
+
+function getVimeoEmbedSource(video: PresentationVideo) {
+  return `https://player.vimeo.com/video/${video.vimeoId}?autoplay=1&title=0&byline=0&portrait=0`;
+}
+
+
+function VideoDock({ activeVideo, expanded, videos, onCloseVideo, onOpenVideo, onToggle }: VideoDockProps) {
+  return (
+    <>
+      <aside className={`video-dock ${expanded ? "expanded" : ""}`}>
+        <button aria-expanded={expanded} className="video-dock-toggle" onClick={onToggle} type="button">
+          <Clapperboard size={16} />
+          <span>Videos</span>
+        </button>
+
+        <div className="video-dock-panel" aria-hidden={!expanded}>
+          <div className="video-dock-header">
+            <span>Material audiovisual</span>
+            <strong>{videos.length} clips</strong>
+          </div>
+
+          <div className="video-list">
+            {videos.length > 0 ? (
+              videos.map((video) => (
+                <button className="video-item" key={video.id} onClick={() => onOpenVideo(video)} type="button">
+                  <span className={`video-preview poster-${video.id}`} aria-hidden="true">
+                    <img
+                      alt=""
+                      loading="lazy"
+                      onError={(event) => {
+                        event.currentTarget.style.display = "none";
+                      }}
+                      src={video.thumbnailUrl}
+                    />
+                    <span className="poster-plant">
+                      <span />
+                      <span />
+                      <span />
+                      <span />
+                    </span>
+                    <span className="poster-conveyor" />
+                    <span className="poster-grid" />
+                    <span className="video-preview-play">
+                      <PlayCircle size={16} />
+                    </span>
+                  </span>
+                  <span className="video-item-copy">
+                    <strong>{video.title}</strong>
+                  </span>
+                </button>
+              ))
+            ) : (
+              <p className="video-empty">No hay vídeos configurados.</p>
+            )}
+          </div>
+        </div>
+      </aside>
+
+      {activeVideo && <VideoModal video={activeVideo} onClose={onCloseVideo} />}
+    </>
+  );
+}
+
+interface VideoModalProps {
+  video: PresentationVideo;
+  onClose: () => void;
+}
+
+function VideoModal({ video, onClose }: VideoModalProps) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  const vimeoSource = getVimeoEmbedSource(video);
+
+  return (
+    <div className="video-modal-backdrop" onClick={onClose}>
+      <section aria-label={`Vídeo ${video.title}`} aria-modal="true" className="video-modal" onClick={(event) => event.stopPropagation()} role="dialog">
+        <header className="video-modal-header">
+          <div>
+            <h2>{video.title}</h2>
+          </div>
+          <button aria-label="Cerrar vídeo" onClick={onClose} type="button">
+            <X size={18} />
+          </button>
+        </header>
+
+        <iframe
+          allow="autoplay; fullscreen; picture-in-picture"
+          allowFullScreen
+          src={vimeoSource}
+          title={video.title}
+        />
+      </section>
+    </div>
   );
 }
 
@@ -262,7 +400,7 @@ function DigitalTwinStage({
           </div>
           <div>
             <p className="eyebrow">{finalMode ? "Escenario recomendado" : "Conexión al gemelo digital"}</p>
-            <h1>{finalMode ? "Planta optimizada validada en 3D" : "Plant Simulation conectado"}</h1>
+            <h1>{finalMode ? "Planta optimizada validada en 3D" : "DES-AI conectado"}</h1>
           </div>
         </div>
 
@@ -285,97 +423,62 @@ function DigitalTwinStage({
         </div>
       </header>
 
-      <div className="twin-narrative">
+      <div className={finalMode ? "twin-narrative final-narrative" : "twin-narrative"}>
         <p>{finalMode ? "Vuelta al gemelo digital" : "Acto 1"}</p>
         <h2>{finalMode ? "Cambios aplicados sobre la planta" : "Arrancamos desde la planta, no desde el chat"}</h2>
         <span>
           {finalMode
             ? "El agente vuelve al modelo 3D con la política seleccionada: secuenciación APS, bypass de inspección y buffer adaptativo."
-            : "La historia empieza conectando con el modelo de Siemens Plant Simulation. A partir de este gemelo digital se activa el agente de simulación."}
+            : "La historia empieza conectando con el modelo de Simulación de Eventos Discretos (DES). A partir de este gemelo digital se activa el agente de simulación."}
         </span>
-        <div className="twin-connection">
-          <strong>{finalMode ? "Resultado" : "Handshake"}</strong>
-          <em>{finalMode ? "+28% throughput · -42% lead time · 91% confianza" : "DES model loaded · AssemblyPack_v12 · 8 recursos"}</em>
-        </div>
+        {!finalMode && (
+          <div className="twin-connection">
+            <strong>Handshake</strong>
+            <em>DES model loaded · AssemblyPack_v12 · 8 recursos</em>
+          </div>
+        )}
         {!finalMode && (
           <button className="twin-primary" onClick={() => onRunFrom(AGENT_START_STEP)} type="button">
             <PlayCircle size={17} />
             Iniciar agente de simulación
           </button>
         )}
+
+        {finalMode && (
+          <div className="final-summary">
+            <div>
+              <span>Throughput</span>
+              <strong>238 u/h</strong>
+              <em>+28%</em>
+            </div>
+            <div>
+              <span>Lead time</span>
+              <strong>22 min</strong>
+              <em>-42%</em>
+            </div>
+            <div>
+              <span>WIP</span>
+              <strong>21 uds</strong>
+              <em>-50%</em>
+            </div>
+            <div>
+              <span>OEE</span>
+              <strong>83%</strong>
+              <em>+15 pp</em>
+            </div>
+            <div>
+              <span>CO2e/u</span>
+              <strong>0.68</strong>
+              <em>-17%</em>
+            </div>
+            <button className="final-restart-tile" onClick={onReset} type="button">
+              <RotateCcw size={17} />
+              Reiniciar presentación
+            </button>
+          </div>
+        )}
       </div>
 
-      {finalMode && (
-        <div className="final-summary">
-          <div>
-            <span>Throughput</span>
-            <strong>238 u/h</strong>
-            <em>+28%</em>
-          </div>
-          <div>
-            <span>Lead time</span>
-            <strong>22 min</strong>
-            <em>-42%</em>
-          </div>
-          <div>
-            <span>WIP</span>
-            <strong>21 uds</strong>
-            <em>-50%</em>
-          </div>
-          <div>
-            <span>OEE</span>
-            <strong>83%</strong>
-            <em>+15 pp</em>
-          </div>
-          <button className="final-restart-tile" onClick={onReset} type="button">
-            <RotateCcw size={17} />
-            Reiniciar presentación
-          </button>
-        </div>
-      )}
-
-      <footer className="twin-footer">
-        <div className="playback twin-playback">
-          <div className="progress-track" aria-label="Progreso de la demo">
-            <span style={{ width: `${getProgress(activeStep)}%` }} />
-            {playbackMilestones.map((milestone) => (
-              <button
-                aria-label={`Ir a ${milestone.label}`}
-                className={activeStep >= milestone.step ? "milestone active" : "milestone"}
-                key={milestone.step}
-                onClick={() => onJump(milestone.step)}
-                style={{ left: `${getProgress(milestone.step)}%` }}
-                type="button"
-              >
-                <span>{milestone.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="scenario-strip twin-strip">
-          {scenarios.map((item, index) => {
-            const Icon = item.icon;
-            return (
-              <button
-                className={index === scenarioIndex ? "scenario-tab active" : activeStep >= item.stepStart ? "scenario-tab done" : "scenario-tab"}
-                key={item.id}
-                onClick={() => onJump(item.stepStart)}
-                type="button"
-              >
-                <span>{item.label}</span>
-                <Icon size={16} />
-                <strong>{item.name}</strong>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="current-scenario">
-          <span>{scenario.phase}</span>
-          <strong>{scenario.name}</strong>
-        </div>
-      </footer>
     </section>
   );
 }
@@ -902,8 +1005,8 @@ function TwinCanvas({ optimized, variant = "hero", activeStep = INTRO_STEP, inte
     const animate = () => {
       frame += 0.01;
       const step = activeStepRef.current;
-      const isOptimized = optimizedRef.current || step >= 13;
-      const showDiagnostics = step >= 8 && step < 13;
+      const isOptimized = optimizedRef.current || step >= 14;
+      const showDiagnostics = step >= 8 && step < 14;
       const showBypass = isOptimized || step >= 11;
       const showBuffer = isOptimized || step >= 12;
       assemblyRobot.shoulder.rotation.y = Math.sin(frame * 1.7) * 0.42;
@@ -1010,7 +1113,7 @@ function AgentPanel({ activeStep, isPlaying, visibleEvents }: AgentPanelProps) {
           <span className="brand-mark-core" />
         </div>
         <div>
-          <p className="eyebrow">Sistema agéntico industrial</p>
+          <p className="eyebrow">DES-AI</p>
           <h1>Optimización autónoma de planta</h1>
         </div>
       </div>
@@ -1042,7 +1145,7 @@ function AgentPanel({ activeStep, isPlaying, visibleEvents }: AgentPanelProps) {
         </div>
         <div>
           <span>Función objetivo</span>
-          <p>Maximizar producción, bajar WIP y energía, conservar robustez operacional.</p>
+          <p>Maximizar producción, bajar WIP, energía y CO2e/u, conservar robustez operacional.</p>
         </div>
       </div>
 
@@ -1226,7 +1329,8 @@ function ScenarioSummary({ activeStep, scenario }: ScenarioSummaryProps) {
         <Metric label="Lead time" value={`${scenario.metrics.leadTime}`} unit="min" delta={scenario.deltas.leadTime} />
         <Metric label="OEE" value={`${scenario.metrics.oee}`} unit="%" delta={scenario.deltas.oee} />
         <Metric label="Energía" value={`${scenario.metrics.energy}`} unit="kWh/u" delta={scenario.id === "baseline" ? "base" : "-14%"} />
-        <Metric label="Confianza" value={`${scenario.metrics.confidence}`} unit="%" delta={activeStep > 12 ? "validado" : "simulado"} />
+        <Metric label="CO2e/u" value={`${scenario.metrics.carbon}`} unit="kg" delta={scenario.id === "baseline" ? "base" : "-17%"} />
+        <Metric label="Confianza" value={`${scenario.metrics.confidence}`} unit="%" delta={activeStep > 13 ? "validado" : "simulado"} />
       </div>
     </section>
   );
@@ -1263,7 +1367,7 @@ interface PlantSimulatorProps {
 function PlantSimulator({ activeStep, scenario }: PlantSimulatorProps) {
   const currentEvent = agentEvents[activeStep];
   const isOptimized = scenario.id === "optimized";
-  const twinOptimized = isOptimized || activeStep >= 13;
+  const twinOptimized = isOptimized || activeStep >= 14;
 
   return (
     <section className="plant-shell">

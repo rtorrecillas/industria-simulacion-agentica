@@ -11,6 +11,7 @@ import {
   FlaskConical,
   GitBranch,
   Gauge,
+  Leaf,
   Network,
   PackageCheck,
   RadioTower,
@@ -21,7 +22,7 @@ import {
   Waypoints,
 } from "lucide-react";
 
-export type ToolKind = "DES" | "MES" | "APS" | "SCADA" | "PLC" | "AGENT";
+export type ToolKind = "DES" | "MES" | "APS" | "SCADA" | "PLC" | "CARBON" | "AGENT";
 export type Severity = "info" | "tool" | "reason" | "warning" | "success";
 
 export interface AgentEvent {
@@ -49,6 +50,7 @@ export interface Scenario {
     leadTime: number;
     oee: number;
     energy: number;
+    carbon: number;
     confidence: number;
   };
   deltas: {
@@ -75,8 +77,8 @@ export interface Station {
 
 export const INTRO_STEP = -2;
 export const AGENT_START_STEP = 0;
-export const FINAL_STEP = 16;
-export const TOTAL_STEPS = 18;
+export const FINAL_STEP = 17;
+export const TOTAL_STEPS = 19;
 export const STEP_MS = 2200;
 
 export const scenarios: Scenario[] = [
@@ -94,6 +96,7 @@ export const scenarios: Scenario[] = [
       leadTime: 38,
       oee: 68,
       energy: 14.8,
+      carbon: 0.82,
       confidence: 72,
     },
     deltas: {
@@ -116,6 +119,7 @@ export const scenarios: Scenario[] = [
       leadTime: 31,
       oee: 73,
       energy: 14.1,
+      carbon: 0.76,
       confidence: 79,
     },
     deltas: {
@@ -129,7 +133,7 @@ export const scenarios: Scenario[] = [
     label: "S2",
     name: "Diagnóstico MES/SCADA",
     phase: "Causa raíz",
-    summary: "Cruza OEE, alarmas PLC y tiempos SCADA: el robot de inspección satura por falsos rechazos.",
+    summary: "Cruza OEE, alarmas PLC, tiempos SCADA y CO2e/u: el robot de inspección satura por falsos rechazos.",
     stepStart: 9,
     icon: ScanSearch,
     metrics: {
@@ -138,6 +142,7 @@ export const scenarios: Scenario[] = [
       leadTime: 27,
       oee: 76,
       energy: 13.9,
+      carbon: 0.72,
       confidence: 84,
     },
     deltas: {
@@ -151,8 +156,8 @@ export const scenarios: Scenario[] = [
     label: "S3",
     name: "Escenario optimizado",
     phase: "Nueva política",
-    summary: "Introduce bypass controlado, buffer dinámico y ajuste de velocidad por estado de línea.",
-    stepStart: 13,
+    summary: "Introduce bypass controlado, buffer dinámico y ajuste de velocidad minimizando CO2e por unidad.",
+    stepStart: 14,
     icon: Sparkles,
     metrics: {
       throughput: 238,
@@ -160,6 +165,7 @@ export const scenarios: Scenario[] = [
       leadTime: 22,
       oee: 83,
       energy: 12.7,
+      carbon: 0.68,
       confidence: 91,
     },
     deltas: {
@@ -177,8 +183,8 @@ export const agentEvents: AgentEvent[] = [
     tool: "AGENT",
     severity: "info",
     title: "Inicializando gemelo de decisión",
-    detail: "Cargo objetivo: maximizar throughput manteniendo WIP y energía bajo umbral.",
-    metric: "Función objetivo: +THR -WIP -kWh",
+    detail: "Cargo objetivo: maximizar throughput manteniendo WIP, energía y huella de carbono bajo umbral.",
+    metric: "Función objetivo: +THR -WIP -kWh -kgCO2e/u",
   },
   {
     id: 1,
@@ -274,14 +280,27 @@ export const agentEvents: AgentEvent[] = [
   {
     id: 10,
     at: "00:47",
-    tool: "AGENT",
-    severity: "reason",
-    title: "Causa raíz probable",
-    detail: "La cámara de inspección sobrerrechaza tras cambios de lote y obliga al robot a reordenar piezas.",
+    tool: "CARBON",
+    severity: "tool",
+    title: "Calculando huella de carbono operativa",
+    detail: "Cruzo consumo SCADA, scrap MES y factor eléctrico para estimar kgCO2e por unidad en cada escenario.",
+    table: [
+      ["Base DES", "0.82 kgCO2e/u"],
+      ["APS", "0.76 kgCO2e/u"],
+      ["Objetivo", "< 0.70 kgCO2e/u"],
+    ],
   },
   {
     id: 11,
     at: "00:51",
+    tool: "AGENT",
+    severity: "reason",
+    title: "Causa raíz probable",
+    detail: "La cámara de inspección sobrerrechaza tras cambios de lote: genera cola, retrabajo y carbono embebido por scrap.",
+  },
+  {
+    id: 12,
+    at: "00:55",
     tool: "DES",
     severity: "tool",
     title: "Creando bypass controlado",
@@ -289,28 +308,28 @@ export const agentEvents: AgentEvent[] = [
     metric: "Nodo nuevo: BYP-QI",
   },
   {
-    id: 12,
-    at: "00:56",
+    id: 13,
+    at: "01:00",
     tool: "DES",
     severity: "tool",
     title: "Ajustando buffer dinámico",
-    detail: "El buffer B aumenta capacidad cuando SCADA detecta cola y reduce velocidad de ensamblaje.",
+    detail: "El buffer B aumenta capacidad cuando SCADA detecta cola y reduce velocidad de ensamblaje para evitar consumo pico.",
   },
   {
-    id: 13,
-    at: "01:01",
+    id: 14,
+    at: "01:05",
     tool: "PLC",
     severity: "tool",
     title: "Sincronizando política PLC",
     detail: "Simulo señales de control para velocidad de cinta y prioridad del robot de inspección.",
   },
   {
-    id: 14,
-    at: "01:06",
+    id: 15,
+    at: "01:10",
     tool: "DES",
     severity: "tool",
     title: "Ejecutando lote de experimentos",
-    detail: "Comparo 64 combinaciones de capacidad, velocidad, bypass y secuenciación.",
+    detail: "Comparo 64 combinaciones de capacidad, velocidad, bypass y secuenciación con restricción de CO2e/u.",
     table: [
       ["Experimentos", "64"],
       ["Dominados", "41"],
@@ -318,30 +337,30 @@ export const agentEvents: AgentEvent[] = [
     ],
   },
   {
-    id: 15,
-    at: "01:13",
+    id: 16,
+    at: "01:17",
     tool: "AGENT",
     severity: "success",
     title: "Escenario recomendado",
-    detail: "Selecciono política híbrida: APS por familia, bypass limitado y buffer B adaptativo.",
-    metric: "+28% throughput · Lead time -42%",
-  },
-  {
-    id: 16,
-    at: "01:18",
-    tool: "MES",
-    severity: "success",
-    title: "Generando resumen ejecutivo",
-    detail: "Preparo narrativa de impacto: mayor producción, menor WIP, menos energía por unidad.",
+    detail: "Selecciono política híbrida: APS por familia, bypass limitado y buffer B adaptativo con menor carbono unitario.",
+    metric: "+28% throughput · CO2e/u -17%",
   },
   {
     id: 17,
-    at: "01:24",
+    at: "01:22",
+    tool: "MES",
+    severity: "success",
+    title: "Generando resumen ejecutivo",
+    detail: "Preparo narrativa de impacto: mayor producción, menor WIP, menos energía y menor huella de carbono por unidad.",
+  },
+  {
+    id: 18,
+    at: "01:28",
     tool: "AGENT",
     severity: "success",
     title: "Conclusión",
     detail: "El agente no solo evalúa escenarios: modifica el modelo, busca evidencia operacional y converge a una política accionable.",
-    metric: "Confianza simulada: 91%",
+    metric: "Confianza simulada: 91% · CO2e/u -17%",
   },
 ];
 
@@ -369,7 +388,7 @@ export const stations: Station[] = [
     icon: Waypoints,
     tool: "APS",
     activeSteps: [5, 6, 7],
-    optimizedSteps: [13, 14, 15],
+    optimizedSteps: [14, 15, 16],
   },
   {
     id: "assembly",
@@ -381,9 +400,9 @@ export const stations: Station[] = [
     h: 22,
     icon: Settings2,
     tool: "DES",
-    activeSteps: [1, 6, 14],
+    activeSteps: [1, 6, 15],
     warningSteps: [2],
-    optimizedSteps: [13, 15],
+    optimizedSteps: [14, 16],
   },
   {
     id: "cobot",
@@ -395,7 +414,7 @@ export const stations: Station[] = [
     h: 15,
     icon: Activity,
     tool: "PLC",
-    activeSteps: [8, 13],
+    activeSteps: [8, 14],
   },
   {
     id: "inspection",
@@ -407,9 +426,9 @@ export const stations: Station[] = [
     h: 25,
     icon: ScanSearch,
     tool: "SCADA",
-    activeSteps: [8, 9, 10, 11, 14],
-    warningSteps: [2, 8, 9, 10],
-    optimizedSteps: [11, 14, 15],
+    activeSteps: [8, 9, 10, 11, 12, 15],
+    warningSteps: [2, 8, 9, 11],
+    optimizedSteps: [12, 15, 16],
   },
   {
     id: "bypass",
@@ -421,8 +440,8 @@ export const stations: Station[] = [
     h: 16,
     icon: GitBranch,
     tool: "DES",
-    activeSteps: [11, 12, 14, 15],
-    optimizedSteps: [11, 12, 13, 14, 15, 16, 17],
+    activeSteps: [12, 13, 15, 16],
+    optimizedSteps: [12, 13, 14, 15, 16, 17, 18],
   },
   {
     id: "packaging",
@@ -434,9 +453,9 @@ export const stations: Station[] = [
     h: 21,
     icon: PackageCheck,
     tool: "PLC",
-    activeSteps: [9, 13, 14, 15],
+    activeSteps: [9, 14, 15, 16],
     warningSteps: [2, 9],
-    optimizedSteps: [15, 16, 17],
+    optimizedSteps: [16, 17, 18],
   },
   {
     id: "shipping",
@@ -448,8 +467,8 @@ export const stations: Station[] = [
     h: 16,
     icon: ShieldCheck,
     tool: "MES",
-    activeSteps: [15, 16, 17],
-    optimizedSteps: [15, 16, 17],
+    activeSteps: [16, 17, 18],
+    optimizedSteps: [16, 17, 18],
   },
 ];
 
@@ -459,6 +478,7 @@ export const toolIcons: Record<ToolKind, LucideIcon> = {
   APS: BarChart3,
   SCADA: RadioTower,
   PLC: Cpu,
+  CARBON: Leaf,
   AGENT: Bot,
 };
 
@@ -468,6 +488,7 @@ export const toolLabels: Record<ToolKind, string> = {
   APS: "APS",
   SCADA: "SCADA",
   PLC: "PLC",
+  CARBON: "CO2e",
   AGENT: "Agent",
 };
 
@@ -475,7 +496,7 @@ export const headlineStats = [
   { label: "Objetivo", value: "Optimizar planta", icon: BrainCircuit },
   { label: "Método", value: "Diseño + prueba autónoma", icon: FlaskConical },
   { label: "Salida", value: "Escenario recomendado", icon: Gauge },
-  { label: "Integración", value: "DES · MES · APS · SCADA · PLC", icon: Network },
+  { label: "Integración", value: "DES · MES · APS · SCADA · PLC · CO2e", icon: Network },
 ];
 
 export function getScenarioForStep(step: number): Scenario {
@@ -510,6 +531,6 @@ export const playbackMilestones = [
   { step: AGENT_START_STEP, label: "Agente" },
   { step: 5, label: "APS" },
   { step: 9, label: "Diagnóstico" },
-  { step: 13, label: "Optimización" },
+  { step: 14, label: "Optimización" },
   { step: FINAL_STEP, label: "Resumen" },
 ];
